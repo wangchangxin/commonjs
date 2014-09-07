@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title></title>
+    <script type="text/javascript" src="/public/js/requirejs/require.js"></script>
+    <script type="text/javascript" src="/public/js/main.js"></script>
+</head>
+<body>
+
+
+<script type="text/javascript">
+    require(['underscore'], function (_) {
+
+        var compiled = _.template("hello: <%= name %>");
+        var rs = compiled({name: '昌欣'});
+
+        console.log(rs);
+
+        var template = _.template("<b><%- value %></b>");
+        var rs2 = template({value: '<script>'});
+
+
+        console.log(rs2);
+
+    });
+</script>
+</body>
+</html>

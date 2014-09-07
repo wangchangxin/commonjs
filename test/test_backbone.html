@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title></title>
+    <script type="text/javascript" src="/public/js/requirejs/require.js"></script>
+    <script type="text/javascript" src="/public/js/main.js"></script>
+</head>
+
+<style>
+    html,body{
+        height: 100%;
+        width : 100%;
+        margin: 0;
+        padding: 0;
+        font-size: 12px;
+    }
+    input.username{
+        width : 80px;
+    }
+    input.age{
+        width : 30px;
+    }
+    select.sex{
+        width : 45px;
+    }
+    .emp-table{
+        width: 100%;
+        text-align: center;
+    }
+    .emp-table tr{
+        height: 30px;
+    }
+    .emp-table td .edit{
+        display: none;
+    }
+    .emp-table td.editing .edit{
+        display: block;
+    }
+    .emp-table td.editing .display{
+        display: none;
+    }
+</style>
+<body>
+<div style="width: 650px;margin: 0 auto;" id="app">
+    <p id="emp-form">
+        <label for="username">姓名：</label>
+        <input id="username" class="username" name="username"/>
+        <label for="sex">性别：</label>
+        <select id="sex" name="sex" class="sex">
+            <option value="0">男</option>
+            <option value="1">女</option>
+        </select>
+        <label for="age">年龄：</label>
+        <input id="age" name="age" class="age"/>
+        <label for="position">职位：</label>
+        <input id="position" name="position" class="position" />
+        <button id="add-btn">增加</button>
+    </p>
+    <table class="emp-table" border="1" cellspacing="0" cellpadding="0">
+        <caption style="font-size: 14px;font-weight: bold;">职员信息表（双击编辑）</caption>
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>姓名</th>
+            <th>性别</th>
+            <th>年龄</th>
+            <th>职位</th>
+            <th>操作</th>
+        </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+    <div id="pager"></div>
+    <script type="text/template" id="item-template">
+        <td><%= eid %></td>
+        <td class="username"><div class="display"><%= username %></div><div class="edit"><input class="username" name="username"></input></div></td>
+        <td class="sex"><div class="display"><%= sex=="1" ? "女":"男" %></div><div class="edit"><select name="sex" class="sex" style="width:45px"><option value="0">男</option><option value="1">女</option></select></div></td>
+        <td class="age"><div class="display"><%= age %></div><div class="edit"><input class="age" name="age"></input></div></td>
+        <td class="position"><div class="display"><%= position %></div><div class="edit"><input class="position" name="position"></input></div></td>
+        <td><a href="#" class="del">删除</a></td>
+    </script>
+</div>
+
+
+<script type="text/javascript">
+    require(['jquery','underscore','backbone','localstorage'], function ($, _,Backbone) {
+
+
+        $(function () {
+
+
+            var  Employee = Backbone.Model.extend({
+                initialize : function() {
+                    this.on("invalid",function(model,error){
+                        alert(error ); //显示：年龄错误
+                    });
+                },
+                // 模型值校验
+                validate:function(attrs){
+                    for(var key in attrs){
+                        if(attrs[key] == ''){
+                            return key + "不能为空";
+                        }
+                        if(key == 'age' && isNaN(attrs.age)){
+                            return "年龄必须是数字";
+                        }
+                    }
+                }
+            });
+
+
+
+
+
+            var  EmployeeList = Backbone.Collection.extend({
+                model : Employee,
+                // 持久化到本地数据库
+                localStorage: new Backbone.LocalStorage("employeesss")
+            });
+
+
+
+
+
+
+            var  Employees = new EmployeeList();
+
+
+
+
+            var  EmployeeView = Backbone.View.extend({
+                tagName : 'tr',
+                template : _.template($('#item-template').html()),
+                events : {
+                    "dblclick td" : "edit",
+                    "blur input,select" : "close",
+                    "click .del" : "clear"
+                },
+                initialize : function(){
+                    // 每次更新模型后重新渲染
+                    this.model.bind('change', this.render, this);
+                    // 每次删除模型之后自动移除UI
+                    this.model.bind('destroy', this.remove, this);
+                },
+                setText : function(){
+                    var model = this.model;
+                    this.input = $(this.el).find('input,select');
+                    this.input.each(function(){
+                        var input = $(this);
+                        input.val(model.get(input.attr("name")));
+                    });
+                },
+                close: function(e) {
+                    var input = $(e.currentTarget);
+                    var obj = {};
+                    obj[input.attr('name')] = input.val();
+                    this.model.save(obj);
+                    $(e.currentTarget).parent().parent().removeClass("editing");
+                },
+                edit : function(e){
+                    // 给td加上editing样式
+                    $(e.currentTarget).addClass('editing').find('input,select').focus();
+                },
+                render: function() {
+                    $(this.el).html(this.template(this.model.toJSON()));
+                    // 把每个单元格的值赋予隐藏的输入框
+                    this.setText();
+                    return this;
+                },
+                remove: function() {
+                    $(this.el).remove();
+                },
+                clear: function() {
+                    this.model.destroy();
+                }
+            });
+
+
+
+            var  AppView = Backbone.View.extend({
+                el : $("#app"),
+                events : {
+                    "click #add-btn" : "createOnEnter"
+                },
+                // 绑定collection的相关事件
+                initialize: function() {
+                    Employees.bind('add', this.addOne, this);
+                    // 调用fetch的时候触发reset
+                    Employees.bind('reset', this.addAll, this);
+                    Employees.fetch();
+                },
+                createOnEnter : function(e) {
+                    var employee = new Employee();
+                    var attr = {};
+                    $('#emp-form input,#emp-form select').each(function(){
+                        var input = $(this);
+                        attr[input.attr('name')] = input.val();
+                    });
+
+
+
+//                    employee.on("invalid",function(model,error){
+//                        alert(error); //显示：年龄错误
+//                    });
+                    // set方法中会自动调用model的validate方法进行校验，如果不通过则返回false
+                    if(employee.set(attr,{validate: true})){
+                        Employees.create(employee);
+                    }
+                },
+                addOne : function(employee){
+                    employee.set({"eid":employee.get("eid")||Employees.length});
+                    
+                    var view = new EmployeeView({model:employee});
+                    $(".emp-table tbody").append(view.render().el);
+                },
+                addAll : function(){
+                    Employees.each(this.addOne);
+                }
+            });
+
+
+            var  App = new AppView();
+        });
+
+    });
+</script>
+</body>
+</html>
